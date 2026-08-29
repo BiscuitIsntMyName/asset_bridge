@@ -138,8 +138,8 @@ class AssetListItem(ABC):
         return ""
 
     @abstractmethod
-    def download_preview(self) -> str:
-        """Download a preview for this asset.
+    def download_preview(self, size: int = 128) -> str:
+        """Download a preview for this asset, at the given resolution.
         Returns an empty string if the download was successful or an error message otherwise"""
 
     def get_high_res_urls(self) -> list[str]:
@@ -180,23 +180,22 @@ class AssetList(ABC):
     description: str
     categories: list[str]
 
-    @property
-    def icon_path(self) -> Path:
-        """The path to the icon for this asset list.
-        By default this is 'api_folder / {list_prefix}_logo.png', but it can be overriden if needed"""
-        file = sys.modules[self.__class__.__module__].__file__  # Get the api folder
-        return Path(file).parent / f"{list(self.assets.values())[0].ab_prefix}_logo.png"
+    @classmethod
+    def icon_path(cls) -> Path:
+        """The path to the icon for this asset list: 'api_folder / *_logo.png'.
+        Doesn't depend on any downloaded asset data, so it can be called at any time."""
+        file = sys.modules[cls.__module__].__file__  # Get the api folder
+        return next(Path(file).parent.glob("*_logo.png"))
 
     @property
     def icon(self):
         """Get the icon for this asset library.
-        Requires the icon_path to be set."""
-        return get_icon(self.icon_path.stem)
+        Requires the icon to have been loaded already (see register_asset_list)."""
+        return get_icon(self.icon_path().stem)
 
     @classmethod
-    @property
-    def data_cache_file(self) -> Path:
-        return DIRS.cache / (self.name + ".json")
+    def data_cache_file(cls) -> Path:
+        return DIRS.cache / (cls.name + ".json")
 
     def __getitem__(self, key) -> AssetListItem:
         return self.assets[key]

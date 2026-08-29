@@ -30,8 +30,13 @@ def register_asset_list(new_list: Type[AssetList]):
     def reg_in_thread():
         start = perf_counter()
         asset_lists[new_list.name] = new_list
+
+        # Load the list icon if it exists. Doesn't depend on any asset data being downloaded yet,
+        # so this needs to happen regardless of whether there's a cache to load below.
+        load_icon(new_list.icon_path())
+
         # Get the cached asset list data if it exists
-        list_file = new_list.data_cache_file
+        list_file = new_list.data_cache_file()
         asset_list_data = {}
         if list_file.exists():
             with open(list_file, "r") as f:
@@ -47,9 +52,6 @@ def register_asset_list(new_list: Type[AssetList]):
         asset_list = asset_lists.initialize_asset_list(new_list.name, data=asset_list_data)
         if asset_list is None:
             return {"CANCELLED"}
-
-        # Load the list icon if it exists
-        load_icon(asset_list.icon_path)
 
         if __IS_DEV__:
             print(f"Initialization for {new_list.name} took {perf_counter() - start:.2f}s")

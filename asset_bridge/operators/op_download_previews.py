@@ -13,6 +13,7 @@ from ..api import get_asset_lists
 from ..settings import get_ab_settings
 from ..constants import DIRS, PREVIEW_DOWNLOAD_TASK_NAME
 from ..helpers.btypes import BOperator
+from ..helpers.prefs import get_prefs
 from ..helpers.general import check_internet
 from ..apis.asset_types import AssetListItem
 from .op_report_message import report_exceptions, report_message
@@ -39,6 +40,7 @@ class AB_OT_download_previews(BOperator.type):
             return self.CANCELLED
 
         ab = get_ab_settings(context)
+        preview_size = int(get_prefs(context).preview_size)
 
         assets = get_asset_lists().all_assets
 
@@ -69,7 +71,7 @@ class AB_OT_download_previews(BOperator.type):
                 if progress.cancelled:
                     return
                 try:
-                    asset.download_preview()
+                    asset.download_preview(size=preview_size)
                 except (ConnectionError, ConnectTimeout) as e:
                     report_message(
                         severity="ERROR",

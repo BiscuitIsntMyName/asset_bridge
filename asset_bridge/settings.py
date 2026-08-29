@@ -54,10 +54,13 @@ class AssetTask(PropertyGroup):
 
     finished: BoolProperty()
 
-    progress: Progress = property(
-        lambda self: get_ab_settings(bpy.context).tasks_progress.get(self.name),
-        lambda self, value: get_ab_settings(bpy.context).tasks_progress.update({self.name: value}),
-    )
+    @property
+    def progress(self) -> Progress:
+        return get_ab_settings(bpy.context).tasks_progress.get(self.name)
+
+    @progress.setter
+    def progress(self, value):
+        get_ab_settings(bpy.context).tasks_progress.update({self.name: value})
 
     def remove(self):
         tasks = get_ab_settings(bpy.context).tasks

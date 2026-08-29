@@ -19,6 +19,7 @@ from .constants import (
     PREVIEW_DOWNLOAD_TASK_NAME,
 )
 from .helpers.prefs import get_prefs
+from .helpers.process import format_traceback
 from .ui.ui_helpers import wrap_text, draw_inline_prop, draw_inline_column, draw_prefs_section, draw_download_previews
 from .helpers.btypes import BMenu
 from .helpers.library import is_lib_path_invalid, ensure_bl_asset_library_exists
@@ -28,6 +29,7 @@ from .operators.op_show_info import InfoSnippets
 from .ui.panel_asset_browser import AB_PT_asset_info
 from .operators.op_show_popup import show_popup
 from .operators.op_open_folder import AB_OT_open_folder
+from .operators.op_set_lib_path import AB_OT_set_lib_path
 from .operators.op_remove_task import AB_OT_remove_task
 from .operators.op_report_message import report_message
 from .operators.op_download_previews import AB_OT_download_previews
@@ -42,59 +44,70 @@ class ABAddonPreferences(UpdaterPreferences, AddonPreferences):
     def lib_path_set(self, new_path):
         """Update all references to library paths"""
 
-        # Check that path is valid
-        if is_lib_path_invalid(new_path):
-            self["_lib_path"] = new_path
-            return
+        # Always keep whatever was picked visible in the field, even if something below fails.
+        self.lib_path_storage = str(new_path)
 
-        default_info_contents = {"version": ASSET_LIB_VERSION}
-
-        # temporarily initialize a new files class at the new location to get the library info file
-        temp_files = FILES.__class__()
-        lib_info_file = temp_files.update(Path(new_path)).lib_info
-
-        # Deal with potential future versions of the library
-        if lib_info_file.exists():
-            with open(lib_info_file, "r") as f:
-                try:
-                    data = json.load(f)
-                except json.JSONDecodeError as e:
-                    print(e)
-                    data = default_info_contents
-            version = data["version"]
-
-            # Breaking update
-            if version[0] > ASSET_LIB_VERSION[0]:
-                message = """This folder has been created in a much newer version of the addon,
-                and as such cannot be used by this version of the addon."""
-
-                show_popup(message=message, title="Error", severity="WARNING")
+        try:
+            # Check that path is valid
+            if is_lib_path_invalid(new_path):
                 return
 
-            # Major update
-            elif version[1] > ASSET_LIB_VERSION[1] and not version[0] < ASSET_LIB_VERSION[0]:
+            default_info_contents = {"version": ASSET_LIB_VERSION}
 
-                def confirm():
-                    with open(lib_info_file, "w") as f:
-                        json.dump(default_info_contents, f, indent=2)
+            # temporarily initialize a new files class at the new location to get the library info file
+            temp_files = FILES.__class__()
+            lib_info_file = temp_files.update(Path(new_path)).lib_info
 
-                    self.lib_path = new_path
+            # Deal with potential future versions of the library
+            if lib_info_file.exists():
+                with open(lib_info_file, "r") as f:
+                    try:
+                        data = json.load(f)
+                    except json.JSONDecodeError as e:
+                        print(e)
+                        data = default_info_contents
+                version = data["version"]
 
-                message = """This folder has been used by a newer version of this addon,
-                and as such it may not work with the current version.
-                Are you sure you want to continue?"""
-                show_popup(message=message, severity="WARNING", confirm=True, title="Warning!", confirm_func=confirm)
-                return
+                # Breaking update
+                if version[0] > ASSET_LIB_VERSION[0]:
+                    message = """This folder has been created in a much newer version of the addon,
+                    and as such cannot be used by this version of the addon."""
 
-        # Update referenecs
-        self["_lib_path"] = str(new_path)
-        DIRS.update(new_path)
-        # print(DIRS.)
-        ensure_bl_asset_library_exists()
+                    show_popup(message=message, title="Error", severity="WARNING")
+                    return
 
-        # write to the config file
-        with open(FILES.lib_info, "w") as f:
-            json.dump(default_info_contents, f, indent=2)
+                # Major update
+                elif version[1] > ASSET_LIB_VERSION[1] and not version[0] < ASSET_LIB_VERSION[0]:
+
+                    def confirm():
+                        with open(lib_info_file, "w") as f:
+                            json.dump(default_info_contents, f, indent=2)
+
+                        self.lib_path = new_path
+
+                    message = """This folder has been used by a newer version of this addon,
+                    and as such it may not work with the current version.
+                    Are you sure you want to continue?"""
+                    show_popup(
+                        message=message, severity="WARNING", confirm=True, title="Warning!", confirm_func=confirm
+                    )
+                    return
+
+            DIRS.update(new_path)
+            ensure_bl_asset_library_exists()
+
+            # write to the config file
+            with open(FILES.lib_info, "w") as f:
+                json.dump(default_info_contents, f, indent=2)
+        except Exception as e:
+            tb = format_traceback(e)
+            print(tb)
+            report_message("ERROR", message=tb)
+
+    # The real, RNA-backed storage for lib_path. AddonPreferences doesn't support the usual
+    # self["key"] custom ID-property storage trick on this Blender version, so lib_path needs
+    # a proper declared property to store its value in.
+    lib_path_storage: StringProperty(options={"HIDDEN"})
 
     lib_path: StringProperty(
         name="External Downloads path",
@@ -105,8 +118,7 @@ class ABAddonPreferences(UpdaterPreferences, AddonPreferences):
             )
         ),
         default="",
-        subtype="DIR_PATH",
-        get=lambda self: self.get("_lib_path", ""),
+        get=lambda self: self.lib_path_storage,
         set=lib_path_set,
     )
 
@@ -156,6 +168,22 @@ class ABAddonPreferences(UpdaterPreferences, AddonPreferences):
             "  ", ""
         ),
         default=False,
+    )
+
+    preview_size: EnumProperty(
+        items=[
+            ("128", "128px", "Smallest download size, but pixelated when zoomed in in the asset browser"),
+            ("256", "256px", "Sharper previews, at Blender's max resolution for asset preview thumbnails"),
+        ],
+        name="Preview size",
+        description="The resolution of the downloaded asset preview thumbnails.\
+            256px is the highest useful value, as Blender's own asset preview thumbnails are capped at 256x256\
+            regardless of the source image size.\
+            Changing this only affects previews downloaded from now on, existing ones need to be reloaded\
+            to use the new size (see 'Reload all assets' in the download previews menu)".replace(
+            "  ", ""
+        ),
+        default="128",
     )
 
     widget_scale: FloatProperty(
@@ -214,6 +242,7 @@ class ABAddonPreferences(UpdaterPreferences, AddonPreferences):
         InfoSnippets.lib_path.draw(sub)
         row.scale_x = 1.5
         row.prop(self, "lib_path", text="")
+        AB_OT_set_lib_path.draw_button(row, text="", icon="FILE_FOLDER")
         if message := is_lib_path_invalid(self.lib_path):
             box.alert = True
             wrap_text(context, message, box)
@@ -289,6 +318,7 @@ class ABAddonPreferences(UpdaterPreferences, AddonPreferences):
         section = draw_prefs_section(grid, "General", self, "show_general")
         fac = 0.5
         draw_inline_prop(section, self, "auto_pack_files", "Auto pack files", "", factor=fac)
+        draw_inline_prop(section, self, "preview_size", "Preview size", "", factor=fac)
         draw_inline_prop(section, self, "viewport_panel_category", "N-Panel category", "", factor=fac)
         draw_inline_prop(section, self, "browser_panel_location", "Browser panel side", "", factor=fac)
         col = section.column(align=True)

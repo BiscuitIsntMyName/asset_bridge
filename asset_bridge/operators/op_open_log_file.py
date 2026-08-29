@@ -26,10 +26,10 @@ class AB_OT_open_log_file(BOperator.type):
             if is_initialized:
                 output += f"{indent}is initialized: {is_initialized}\n"
                 output += f"{indent}no. of assets: {len(asset_list.assets)}\n"
-            exists = asset_list.data_cache_file.exists()
+            exists = asset_list.data_cache_file().exists()
             output += f"{indent}cache file exists: {exists}"
             if exists:
-                output += f"({human_readable_file_size(os.path.getsize(asset_list.data_cache_file))})"
+                output += f"({human_readable_file_size(os.path.getsize(asset_list.data_cache_file()))})"
             output += "\n"
         output += "\n"
         indent = "  "
