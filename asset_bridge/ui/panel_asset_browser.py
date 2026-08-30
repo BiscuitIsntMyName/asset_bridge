@@ -21,16 +21,16 @@ class AB_PT_asset_info(Panel, AssetBrowserPanel):
             return False
         if not context.asset:
             return False
-        # In 3.5 the assets can also be viewed in th "All" asset library
-        if ASSET_LIB_NAME != context.area.spaces.active.params.asset_library_reference:
-            ab = get_ab_settings(context)
-            try:
-                asset = ab.selected_asset
-            except KeyError:
-                asset = None
+        # Also make sure the addon actually recognizes this asset (it might not yet if the
+        # asset lists haven't finished loading, e.g. right after starting Blender).
+        ab = get_ab_settings(context)
+        try:
+            asset = ab.selected_asset
+        except KeyError:
+            asset = None
 
-            if not asset:
-                return False
+        if not asset:
+            return False
         return cls.asset_browser_panel_poll(context)
 
     def draw_import_settings(self, layout: UILayout, context: Context):

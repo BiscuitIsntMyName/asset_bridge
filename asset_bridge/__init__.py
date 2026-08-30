@@ -16,7 +16,7 @@ bl_info = {
     "author": "Andrew Stevenson",
     "description": "Easily download and import free assets from the internet.",
     "blender": (4, 0, 0),
-    "version": (2, 2, 4, 8),
+    "version": (2, 2, 4, 10),
     "location": "3D View > N-Panel > Asset Bridge",
     "warning": "",
     "doc_url": "",

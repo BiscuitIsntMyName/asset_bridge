@@ -17,8 +17,8 @@ class AB_OT_report_message(BOperator.type):
     message: StringProperty(default="")
 
     def invoke(self, context, event):
-        """The report needs to be done in the modal function otherwise it wont show at the bottom of the screen
-        for some reason ¯\_(ツ)_/¯"""  # noqa
+        r"""The report needs to be done in the modal function otherwise it wont show at the bottom of the screen
+        for some reason ¯\_(ツ)_/¯"""
         # We also need to add a timer to update the window to make sure that it shows up immediately,
         # rather than when the user moves their mouse.
         self.timer = context.window_manager.event_timer_add(0.001, window=context.window)
